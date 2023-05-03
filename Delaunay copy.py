@@ -3,54 +3,59 @@ from time import time
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
+class DelVorCov(GeometryDatabase):
+    def __init__(self, vcoords):
+        super().__init__(vcoords)
+        self.boywerWatson()
 
-def boywerWatson(vcoords):
-    d = 100
-    far_points = np.array([[0, 0, d], [d, 0, -d], [-d, d, -d], [-d, -d, -d]])
-    far_ids = [len(vcoords),len(vcoords)+1,len(vcoords)+2,len(vcoords)+3]
-    vcoords = np.block([[vcoords],[far_points]])
-    db = GeometryDatabase(vcoords)
-    current_simplices = [Simplex(far_ids, db)]
-    for vid in range(len(vcoords)-4):
-        v = vcoords[vid]
-        bad_simplices = []
+    def boywerWatson(self):
+        d = 100
+        far_points = np.array([[0, 0, d], [d, 0, -d], [-d, d, -d], [-d, -d, -d]])
+        vcoords = self.vcoords
+        far_ids = [len(vcoords),len(vcoords)+1,len(vcoords)+2,len(vcoords)+3]
+        vcoords = np.block([[vcoords],[far_points]])
+        db = GeometryDatabase(vcoords)
+        current_simplices = [Simplex(far_ids, db)]
+        for vid in range(len(vcoords)-4):
+            v = vcoords[vid]
+            bad_simplices = []
+            pop_ids = []
+            for sid, s in enumerate(current_simplices):
+                if s.isInCircumcicle(v):
+                    bad_simplices.append(s)
+                    pop_ids.append(sid)
+            pop_ids.reverse()
+            for sid in pop_ids:
+                current_simplices.pop(sid)
+
+            bad_boundaries = []
+            for s in bad_simplices:
+                bad_boundaries += s.bids
+
+            # Counting sort
+            bid_max = np.max(bad_boundaries)
+            bid_count = np.zeros(bid_max+1)
+            for bid in bad_boundaries:
+                bid_count[bid] += 1
+
+            for bid in range(bid_max+1):
+                if bid_count[bid] == 1:
+                    current_simplices.append(
+                        Simplex(list(db.b2v[bid]) + [vid], db))
+
         pop_ids = []
         for sid, s in enumerate(current_simplices):
-            if s.isInCircumcicle(v):
-                bad_simplices.append(s)
+            if len(set.intersection(set(far_ids), s.vids)) > 0:
                 pop_ids.append(sid)
         pop_ids.reverse()
         for sid in pop_ids:
             current_simplices.pop(sid)
+        
+        self.v2b = db.v2b[:-4]
+        self.b2v = db.b2v
+        self.delaunay = current_simplices
 
-        bad_boundaries = []
-        for s in bad_simplices:
-            bad_boundaries += s.bids
-
-        # Counting sort
-        bid_max = np.max(bad_boundaries)
-        bid_count = np.zeros(bid_max+1)
-        for bid in bad_boundaries:
-            bid_count[bid] += 1
-
-        for bid in range(bid_max+1):
-            if bid_count[bid] == 1:
-                current_simplices.append(
-                    Simplex(list(db.b2v[bid]) + [vid], db))
-
-    pop_ids = []
-    for sid, s in enumerate(current_simplices):
-        if len(set.intersection(set(far_ids), s.vids)) > 0:
-            pop_ids.append(sid)
-    pop_ids.reverse()
-    for sid in pop_ids:
-        current_simplices.pop(sid)
-    
-    db.vcoords = db.vcoords[:-4]
-    db.num_v -=4
-    db.v2b = db.v2b[:-4]
-
-    return current_simplices, db
+        return
 
 # Random vertices
 # n=20
@@ -92,8 +97,9 @@ vcoords = np.array([
 ])
 
 
+db = DelVorCov(vcoords)
 # Visualization
-current_simplices, db = boywerWatson(vcoords)
+current_simplices = db.delaunay
 print("Num Simplices: {}".format(len(current_simplices)))
 all_boundaries = []
 for s in current_simplices:

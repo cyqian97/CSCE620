@@ -87,7 +87,7 @@ class Simplex:
     
     def isInCircumcicle(self,p):
         return np.linalg.norm(p-self.cc)<self.cr+1e-10
-
+    
 # s = Simplex(np.array([[0,0,0],[1,0,0],[0,1,0],[0,0,1]]))
 # c,r = s.calcCircumcircle()
 # print(c)
