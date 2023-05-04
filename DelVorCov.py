@@ -138,10 +138,13 @@ class DelVorCov(GeometryDatabase):
                     vids_neighbor.append(self.e2v[eid][0])
             vcoords_neighbors = self.vcoords[vids_neighbor,:]-self.vcoords[vid]
             vcoords_neighbors = (vcoords_neighbors.T/np.linalg.norm(vcoords_neighbors.T,axis=0)).T
-
+            self.convhull.v_norms[vid] = np.zeros(3)
             for v in vcoords_neighbors:
-                self.convhull.v_norms[vid] += v * np.min(vcoords_neighbors @ v.T)
-            self.convhull.v_norms[vid] /= np.linalg.norm(self.convhull.v_norms[vid])
+                innprod = list(vcoords_neighbors @ v.T)
+                innprod.pop(np.argmax(innprod))
+                self.convhull.v_norms[vid] += v * np.arccos(np.max(innprod))
+            self.convhull.v_norms[vid] /= -np.linalg.norm(self.convhull.v_norms[vid])
+
             # cov_neighbors = vcoords_neighbors.T @ vcoords_neighbors
             # w,vec = np.linalg.eigh(cov_neighbors)
             # print("vid: {}, neigbor:{}, w: {}".format(vid,vids_neighbor,w))

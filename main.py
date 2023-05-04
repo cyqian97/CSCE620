@@ -5,12 +5,12 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # Random vertices
 n=15
-seed = 1683231838 #int(time())
+seed = int(time())
 np.random.seed(seed)
 print("Random seed: {}".format(seed))
 vcoords = np.random.uniform(0,1,(n,3))
 
-# n=5 diamond
+# # n=5 diamond
 # vcoords = np.array([[0,0,1],
 #           [np.cos(np.pi/6),np.sin(np.pi/6),0],
 #           [np.cos(5*np.pi/6),np.sin(5*np.pi/6),0],
