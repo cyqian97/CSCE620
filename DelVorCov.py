@@ -1,7 +1,5 @@
 from Geometry import *
-from time import time
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
 
 class DelVorCov(GeometryDatabase):
     def __init__(self, vcoords):
@@ -51,69 +49,23 @@ class DelVorCov(GeometryDatabase):
         for sid in pop_ids:
             current_simplices.pop(sid)
         
+        # Copy the information in db to this instance
         self.v2b = db.v2b[:-4]
-        self.b2v = db.b2v
+        all_bids = []
+        for s in current_simplices:
+            all_bids += s.bids
+        # Counting sort
+        bid_max = np.max(all_bids)
+        self.b2v = [[] for i in range(bid_max+1)]
+        self.all_bids = []
+        bid_count = np.zeros(bid_max+1)
+        for bid in all_bids:
+            bid_count[bid] += 1
+        for bid in range(bid_max+1):
+            if bid_count[bid] > 0:
+                self.b2v[bid] = db.b2v[bid]
+                self.all_bids.append(bid)
+
         self.delaunay = current_simplices
 
         return
-
-# Random vertices
-# n=20
-# seed = int(time())
-# np.random.seed(seed)
-# print("Random seed: {}".format(seed))
-# vcoords = np.random.uniform(0,1,(n,3))
-
-# n=5 diamond
-# vcoords = np.array([[0,0,1],
-#           [np.cos(np.pi/6),np.sin(np.pi/6),0],
-#           [np.cos(5*np.pi/6),np.sin(5*np.pi/6),0],
-#           [0,-1,0],
-#           [0,0,-1]])*1.5
-
-# n=6 prism
-# vcoords = np.array([[np.cos(np.pi/6), np.sin(np.pi/6), 1],
-#                     [np.cos(5*np.pi/6), np.sin(5*np.pi/6), 1],
-#                     [0, -1, 1],
-#                     [np.cos(np.pi/6), np.sin(np.pi/6), -1],
-#                     [np.cos(5*np.pi/6), np.sin(5*np.pi/6), -1],
-#                     [0, -1, -1]])
-
-# n = 12 regular icosahedron
-phi = (5**0.5-1)/2
-vcoords = np.array([
-    [0,1,phi],
-    [0,1,-phi],
-    [0,-1,phi],
-    [0,-1,-phi],
-    [1,phi,0],
-    [1,-phi,0],
-    [-1,phi,0],
-    [-1,-phi,0],
-    [phi,0,1],
-    [phi,0,-1],
-    [-phi,0,1],
-    [-phi,0,-1],
-])
-
-
-db = DelVorCov(vcoords)
-# Visualization
-current_simplices = db.delaunay
-print("Num Simplices: {}".format(len(current_simplices)))
-all_boundaries = []
-for s in current_simplices:
-    all_boundaries += s.bids
-
-ax = plt.figure().add_subplot(projection='3d')
-verts = []
-for b in set(all_boundaries):
-    vids = db.b2v[b]
-    verts.append(db.getBoundaryVCoords(b))
-
-poly = Poly3DCollection(verts, linewidths=1, alpha=0.1)
-poly.set_facecolor("tab:blue")
-poly.set_edgecolor("black")
-ax.add_collection3d(poly)
-ax.scatter(vcoords[:, 0], vcoords[:, 1], vcoords[:, 2])
-plt.show()

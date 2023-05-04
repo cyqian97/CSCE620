@@ -7,6 +7,7 @@ class GeometryDatabase:
         self.num_v = vcoords.__len__()
         self.v2b = list(itertools.repeat([], self.num_v)) # List of list of boundaries attached to each vertex
         self.b2v = [] # List of list of vetices of each boundary
+        self.all_bids = []
 
     def getVCoords(self,vids):
         return np.array([self.vcoords[v] for v in vids])
@@ -23,11 +24,11 @@ class GeometryDatabase:
         else:
             raise Exception("Multiple boundaries are found: {}".format(b))
 
-    
     def addBoundary(self,vids):
         if self.existBoundary(vids) < 0:
             self.b2v.append(vids)
             bid = len(self.b2v)-1
+            self.all_bids.append(bid)
             for v in vids:
                 self.v2b[v] = self.v2b[v] + [bid]
             return bid
