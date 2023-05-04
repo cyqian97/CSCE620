@@ -5,9 +5,16 @@ class GeometryDatabase:
     def __init__(self, vcoords):
         self.vcoords = vcoords
         self.num_v = vcoords.__len__()
-        self.v2b = list(itertools.repeat([], self.num_v)) # List of list of boundaries attached to each vertex
+        self.bid_max = 0
+        self.eid_max = 0
+        self.v2b = [[] for i in range (self.num_v)] # List of list of boundaries attached to each vertex
+        self.v2e = [[] for i in range (self.num_v)]
         self.b2v = [] # List of list of vetices of each boundary
+        self.b2e = []
+        self.e2v = []
+        self.e2b = []
         self.all_bids = []
+        self.all_eids = []
 
     def getVCoords(self,vids):
         return np.array([self.vcoords[v] for v in vids])
@@ -28,12 +35,41 @@ class GeometryDatabase:
         if self.existBoundary(vids) < 0:
             self.b2v.append(vids)
             bid = len(self.b2v)-1
+            self.bid_max = bid
             self.all_bids.append(bid)
             for v in vids:
                 self.v2b[v] = self.v2b[v] + [bid]
             return bid
         else:
             return -1
+    
+    def existEdge(self,vids):
+        if not len(vids)==2:
+            raise Exception("Need 2 points but given {}".format(len(vids)))
+        b = set.intersection(set(self.v2e[vids[0]]),set(self.v2e[vids[1]]))
+        if len(b) == 0:
+            return -1
+        elif len(b) == 1:
+            return list(b)[0]
+        else:
+            raise Exception("Multiple boundaries are found: {}".format(b))
+
+    def addEdge(self,vids):
+        if self.existEdge(vids) < 0:
+            self.e2v.append(vids)
+            eid = len(self.e2v)-1
+            self.eid_max = eid
+            self.all_eids.append(eid)
+            for v in vids:
+                self.v2e[v].append(eid)
+            return eid
+        else:
+            return -1
+        
+    def faceNormal(self,bid):
+        vcoords = self.getBoundaryVCoords(bid)
+        n = np.cross(vcoords[2]-vcoords[1],vcoords[1]-vcoords[0])
+        return n / np.linalg.norm(n)
 
 
 class Simplex:
