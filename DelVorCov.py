@@ -6,9 +6,11 @@ class DelVorCov(GeometryDatabase):
         super().__init__(vcoords)
         self.delaunay = [] # list of simplices
         # self.b2s = [] # boundaries to simplices
-        self.convhull = self.ConvexHull() # list of convex hull bids
+        self.convhull = self.ConvexHull() 
+        self.vordiag = self.Voronoi() 
         self.boywerWatson()
         self.processConvHull()
+        self.processVoronoi()
 
     class ConvexHull():
         def __init__(self):
@@ -19,18 +21,24 @@ class DelVorCov(GeometryDatabase):
             self.v_norms = []
             self.adj_list = []
 
+    class Voronoi():
+        def __init__(self) -> None:
+            self.vor_coords = []
+            self.v2vor = []
+
     def boywerWatson(self):
-        d = 100
-        far_points = np.array([[0, 0, d], 
-                               [d, 0, -d], 
-                               [-d, d, -d], 
-                               [-d, -d, -d]]) # Only works for R3
+        far_points = np.array([[1,0,-np.sqrt(2)], 
+                               [-1,0,-np.sqrt(2)], 
+                               [0,1,np.sqrt(2)], 
+                               [0,-1,np.sqrt(2)]]) * 3 * np.max(np.linalg.norm(self.vcoords,axis = 1))
+        print(far_points)
         vcoords = self.vcoords
         far_ids = [len(vcoords),len(vcoords)+1,len(vcoords)+2,len(vcoords)+3]
         vcoords = np.block([[vcoords],[far_points]])
         db = GeometryDatabase(vcoords)
         current_simplices = [Simplex(far_ids, db)]
         for vid in range(len(vcoords)-4):
+            # print("vid:{}".format(vid))
             v = vcoords[vid]
             bad_simplices = []
             pop_ids = []
@@ -54,6 +62,7 @@ class DelVorCov(GeometryDatabase):
 
             for bid in range(bid_max+1):
                 if bid_count[bid] == 1:
+                    # print("    bid:{}".format(bid))
                     current_simplices.append(
                         Simplex(list(db.b2v[bid]) + [vid], db))
 
@@ -136,35 +145,108 @@ class DelVorCov(GeometryDatabase):
                     vids_neighbor.append(self.e2v[eid][1])
                 else:
                     vids_neighbor.append(self.e2v[eid][0])
+
+            # Method1
+            n1 = np.zeros(3)
+            vid1 = vids_neighbor[0]
+            vids_neighbor_sort = [vid1]
+            vids_neighbor_ = vids_neighbor[1:]
+
+            while len(vids_neighbor_)>0:
+                for i,vid2 in enumerate(vids_neighbor_):
+                    if self.existEdge([vid1,vid2]):
+                        vids_neighbor_sort.append(vid2)
+                        vids_neighbor_.pop(i)
+                        vid1 = vid2
+                        break
+            vids_neighbor_sort.append(vids_neighbor[0])
+            for i,vid1 in enumerate(vids_neighbor_sort[:-1]):
+                vid2 = vids_neighbor_sort[i+1]
+                v1 = self.vcoords[vid1,:]-self.vcoords[vid]
+                v2 = self.vcoords[vid2,:]-self.vcoords[vid]
+                v1 /= np.linalg.norm(v1)
+                v2 /= np.linalg.norm(v2)
+                n1 -= v1 * np.linalg.norm(np.cross(v1,v2))
+            n1 /= np.linalg.norm(n1)
+
+        
+            # Method 2
+
             vcoords_neighbors = self.vcoords[vids_neighbor,:]-self.vcoords[vid]
             vcoords_neighbors = (vcoords_neighbors.T/np.linalg.norm(vcoords_neighbors.T,axis=0)).T
-            self.convhull.v_norms[vid] = np.zeros(3)
-            for v in vcoords_neighbors:
-                innprod = list(vcoords_neighbors @ v.T)
-                innprod.pop(np.argmax(innprod))
-                self.convhull.v_norms[vid] += v * np.arccos(np.max(innprod))
-            self.convhull.v_norms[vid] /= -np.linalg.norm(self.convhull.v_norms[vid])
 
-            # cov_neighbors = vcoords_neighbors.T @ vcoords_neighbors
-            # w,vec = np.linalg.eigh(cov_neighbors)
-            # print("vid: {}, neigbor:{}, w: {}".format(vid,vids_neighbor,w))
-            # self.convhull.v_norms[vid] = vec[:,np.argmin(w)]
+            cov_neighbors = vcoords_neighbors.T @ vcoords_neighbors
+            w,vec = np.linalg.eigh(cov_neighbors)
+            n2 = vec[:,np.argmin(w)]
 
-            # avg_neighbors = np.mean(vcoords_neighbors,axis=0)
-            # if self.convhull.v_norms[vid]@avg_neighbors>0:
-            #     self.convhull.v_norms[vid] *= -1
+            avg_neighbors = np.mean(vcoords_neighbors,axis=0)
+            if n2@avg_neighbors>0:
+                n2 *= -1
 
-            # import matplotlib.pyplot as plt
-            # from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-            # ax = plt.figure().add_subplot(projection='3d')
-            # ax.scatter3D(vcoords_neighbors[:,0],vcoords_neighbors[:,1],vcoords_neighbors[:,2])
-            # ax.scatter3D(0,0,0,color = 'red')
-            # for v in vcoords_neighbors: ax.plot3D([0,v[0]],[0,v[1]],[0,v[2]],color = 'tab:blue')
-            # ax.plot3D([0,self.convhull.v_norms[vid,0]],[0,self.convhull.v_norms[vid,1]],[0,self.convhull.v_norms[vid,2]],color='red')
-            # ax.plot3D([0,avg_neighbors[0]],[0,avg_neighbors[1]],[0,avg_neighbors[2]],color='green')
-            # ax.axis('equal')   
-            # plt.show()
-            # 1
+            if np.min(np.arccos(vcoords_neighbors @ n1.T)) > np.min(np.arccos(vcoords_neighbors @ n2.T)):
+                self.convhull.v_norms[vid] = n1
+            else:
+                self.convhull.v_norms[vid] = n2
+    
+    def processVoronoi(self):
+        self.vordiag.vor_coords = np.zeros((len(self.delaunay),3))
+        self.vordiag.v2vor = [[] for i in range(self.num_v)]
+        for sid,s in enumerate(self.delaunay):
+            self.vordiag.vor_coords[sid] = s.cc
+            for vid in s.vids:
+                self.vordiag.v2vor[vid].append(sid)
+
+    def Amenta(self):
+        F_ids = []
+        for vid in range(self.num_v):
+            if self.convhull.isv_on_convhull[vid]:
+                n_plus = self.convhull.v_norms[vid]
+            else:
+                d = 0
+                p_plus = np.zeros(3)
+                p_plus_id = -1
+                for vorid in self.vordiag.v2vor[vid]:
+                    pp = self.vordiag.vor_coords[vorid] 
+                    dd = np.linalg.norm(pp - self.vcoords[vid])
+                    if dd>d:
+                        d = dd
+                        p_plus_id = vorid
+                F_ids.append(p_plus_id)
+                n_plus = self.vordiag.vor_coords[p_plus_id] - self.vcoords[vid]
+
+            d = 0
+            p_minus_id = -1
+            for vorid in self.vordiag.v2vor[vid]:
+                pp = self.vordiag.vor_coords[vorid]
+                dd = (pp - self.vcoords[vid]) @ n_plus
+                if dd < d:
+                    d = dd
+                    p_minus_id = vorid
+            F_ids.append(p_minus_id)
+
+        
+        Fid_max = np.max(F_ids)
+        Fcount = [False for i in range(Fid_max+1)]
+        for fid in F_ids:
+            Fcount[fid] = True
+        F_ids = []
+        for fid in range(Fid_max+1):
+            if Fcount[fid]:
+                F_ids.append(fid)
+        F = self.vordiag.vor_coords[F_ids]
+        voords_new = np.block([[self.vcoords],[F]])
+        print(voords_new.shape)
+        db = DelVorCov(voords_new)
+        crust = []
+        for bid in db.all_bids:
+            is_crust = True
+            for vid in db.b2v[bid]:
+                if vid > self.num_v-1:
+                    is_crust = False
+                    break
+            if is_crust:
+                crust.append(bid)
+        return db, crust
 
 
-
+                    
